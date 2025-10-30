@@ -44,7 +44,7 @@ def configure_bgp(host, config):
             bgp_config["vrf"]["default"]["router"]["bgp"]["address-family"]["ipv4-unicast"]["aggregate-route"][aggregate] = {}
     
     # Apply configuration
-    client.apply_config(revision, bgp_config)
+    client.patch_config(revision, bgp_config)
     print("Configuration staged")
     
     # Apply revision
