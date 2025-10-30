@@ -25,7 +25,10 @@ for router in r1 r2 r3 r4 r5 r6; do
         echo "Warning: Config file not found for ${router}"
         continue
     fi
-    
+    if [ ! -s "$config_file" ]; then
+        echo "Warning: Config file empty for ${router}"
+        continue
+    fi
     # Read configuration
     config=$(cat "$config_file")
     

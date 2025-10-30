@@ -4,20 +4,36 @@
   "interfaces": [
     {"name": "swp1", "ip": "10.1.102.1/29"},
     {"name": "swp2", "ip": "10.1.103.1/29"},
-    {"name": "swp3", "ip": "192.168.14.1/30"}
+    {"name": "swp3", "ip": "192.168.14.1/30"},
+    {"name": "lo", "ip": "10.1.1.1/24"}
   ],
   "ospf": {
     "router_id": "10.1.1.1",
     "area": 0,
-    "networks": ["10.1.102.0/29", "10.1.103.0/29"]
+    "networks": ["10.1.102.0/29", "10.1.103.0/29","10.1.1.0/24"]
   },
   "bgp": {
     "as_number": 65500,
     "router_id": "10.1.1.1",
     "neighbors": [
-      {"ip": "10.1.102.2", "remote_as": "internal"},
-      {"ip": "10.1.103.3", "remote_as": "internal"},
-      {"ip": "192.168.14.2", "remote_as": "external"}
+      {"ip": "10.1.102.2", "remote_as": "internal", "update_source": "lo", "next_hop_self": "on"},
+      {"ip": "10.1.103.3", "remote_as": "internal", "update_source": "lo"},
+      {"ip": "192.168.14.2", "remote_as": "external", "route_map": {"in": "SET_LOCAL_PREF"}}
     ]
-  }
+  },
+  "route_maps": [
+    {
+      "name": "SET_LOCAL_PREF",
+      "entries": [
+        {
+          "sequence": 10,
+          "actions": {
+            "set": {
+              "local-preference": 200
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
