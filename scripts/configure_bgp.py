@@ -83,7 +83,7 @@ def configure_bgp(host, config):
                 }
     
     # Apply configuration
-    client.patch_config(revision, bgp_config, path="/network")
+    client.patch_config(revision, bgp_config)
     print("Configuration staged")
     
     # Apply revision
