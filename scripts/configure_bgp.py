@@ -10,27 +10,10 @@ def configure_bgp(host, config):
     revision = client.create_revision()
     print(f"Created revision: {revision}")
     
-    # Build BGP configuration payload
-    bgp_config = {
-        "network": {
-            "vrf": {
-                "default": {
-                    "router": {
-                        "bgp": {
-                            "autonomous-system": config["as_number"],
-                            "router-id": config["router_id"],
-                            "enable": "on",
-                            "neighbor": {}
-                        }
-                    }
-                }
-            }
-        }
-    }
-    network_root = bgp_config["network"]
-    vrf_default = network_root["vrf"]["default"]["router"]["bgp"]
+    # Route-maps go under router/policy
     if config.get("route_maps"):
-        policy_root = network_root.setdefault("policy", {}).setdefault("route-map", {})
+        route_map_payload = {"router": {"policy": {"route-map": {}}}}
+        policy_root = route_map_payload["router"]["policy"]["route-map"]
         for route_map in config["route_maps"]:
             rm_name = route_map["name"]
             policy_root[rm_name] = {"rule": {}}
@@ -42,6 +25,34 @@ def configure_bgp(host, config):
                 if entry.get("actions"):
                     rule["action"] = entry["actions"]
                 policy_root[rm_name]["rule"][seq] = rule
+        client.patch_config(revision, route_map_payload)
+    
+    # Prefix-lists live under router/prefix-list
+    if config.get("prefix_lists"):
+        prefix_payload = {"router": {"prefix-list": {}}}
+        prefix_root = prefix_payload["router"]["prefix-list"]
+        for plist in config["prefix_lists"]:
+            prefix_root[plist["name"]] = {"rule": {}}
+            for entry in plist.get("entries", []):
+                seq = str(entry["sequence"])
+                prefix_root[plist["name"]]["rule"][seq] = {
+                    "action": entry["action"],
+                    "match": {"prefix": entry["prefix"]}
+                }
+        client.patch_config(revision, prefix_payload)
+    
+    # Build BGP configuration payload (default VRF)
+    bgp_payload = {
+        "router": {
+            "bgp": {
+                "autonomous-system": config["as_number"],
+                "router-id": config["router_id"],
+                "enable": "on",
+                "neighbor": {}
+            }
+        }
+    }
+    router_bgp = bgp_payload["router"]["bgp"]
     
     # Add BGP neighbors
     for neighbor in config.get("neighbors", []):
@@ -60,28 +71,17 @@ def configure_bgp(host, config):
                 neighbor_cfg.setdefault("in", {})["route-map"] = neighbor["route_map"]["in"]
             if neighbor["route_map"].get("out"):
                 neighbor_cfg.setdefault("out", {})["route-map"] = neighbor["route_map"]["out"]
-        vrf_default["neighbor"][neighbor["ip"]] = neighbor_cfg
-        
+        router_bgp["neighbor"][neighbor["ip"]] = neighbor_cfg
     
     # Add aggregate addresses for route summarization
     if config.get("aggregates"):
-        af = vrf_default.setdefault("address-family", {}).setdefault("ipv4-unicast", {})
+        af = router_bgp.setdefault("address-family", {}).setdefault("ipv4-unicast", {})
         af.setdefault("aggregate-route", {})
         for aggregate in config["aggregates"]:
             af["aggregate-route"][aggregate] = {}
-    if config.get("prefix_lists"):
-        prefix_root = network_root.setdefault("prefix-list", {})
-        for plist in config["prefix_lists"]:
-            prefix_root[plist["name"]] = {"rule": {}}
-            for entry in plist.get("entries", []):
-                seq = str(entry["sequence"])
-                prefix_root[plist["name"]]["rule"][seq] = {
-                    "action": entry["action"],
-                    "match": {"prefix": entry["prefix"]}
-                }
     
-    # Apply configuration
-    client.patch_config(revision, bgp_config)
+    # Apply BGP configuration
+    client.patch_config(revision, bgp_payload)
     print("Configuration staged")
     
     # Apply revision
