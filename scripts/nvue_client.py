@@ -6,7 +6,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class NVUEClient:
-    def __init__(self, host, username="cumulus", password="cumulus"):
+    def __init__(self, host, username="cumulus", password="cgrlab2"):
         self.auth = (username, password)
         self.base_url = f"https://{host}:8765/nvue_v1"
         self.headers = {"Content-Type": "application/json"}
