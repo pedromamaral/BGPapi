@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Define all routers with their OOB IPs
+PASSWORD="cgrlab2"
+
 declare -A ROUTERS
 ROUTERS=(
     [r1]="192.168.200.4"
@@ -12,86 +13,93 @@ ROUTERS=(
 )
 
 echo "=========================================="
-echo "  BGP Lab - API Access Setup (Cumulus 5.6)"
+echo "  NVUE API Authentication Setup"
 echo "=========================================="
 echo ""
-API_USER="nvueadmin"
-API_PASS="nvueadmin"
-# Function to setup a single router
-setup_router() {
-    local name=$1
-    local ip=$2
-    
-    echo "[$name] Configuring API access at $ip..."
-    
-    ssh -tt -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-        cumulus@$ip "API_USER='$API_USER' API_PASS='$API_PASS' bash -s" <<'EOSSH'
-sudo ztp -d >/dev/null 2>&1 || true
 
-# Set user role and password via NVUE
-echo "  → Ensuring API user ${API_USER} exists..."
-if nv show system aaa user "${API_USER}" >/dev/null 2>&1; then
-    echo "  → User already present. Updating role and password..."
+for name in "${!ROUTERS[@]}"; do
+    ip="${ROUTERS[$name]}"
+    echo "[$name] Configuring $ip..."
+    
+    ssh cumulus@$ip << 'EOF'
+# Clear any pending NVUE config
+nv config apply empty 2>/dev/null || true
+
+# Create password file using openssl
+password_hash=$(openssl passwd -apr1 cgrlab2)
+echo "cumulus:${password_hash}" | sudo tee /etc/nginx/.htpasswd > /dev/null
+
+# Set permissions (make readable by nginx)
+sudo chmod 644 /etc/nginx/.htpasswd
+
+# Verify file was created
+if [ -f /etc/nginx/.htpasswd ]; then
+    echo "  ✓ htpasswd file created"
+    sudo ls -l /etc/nginx/.htpasswd
 else
-    echo "  → Creating API user ${API_USER}..."
-fi
-
-nv set system aaa user "${API_USER}" role system-admin
-nv set system aaa user "${API_USER}" password "${API_PASS}"
-
-echo "  → Applying configuration..."
-if ! nv config apply; then
-    echo "  ✗ Failed to apply NVUE configuration"
+    echo "  ✗ htpasswd file not found"
     exit 1
 fi
 
-# Test API access
-echo "  → Testing API..."
-response=$(curl -s -o /dev/null -w "%{http_code}" -u "${API_USER}:${API_PASS}" --insecure https://127.0.0.1:8765/nvue_v1/)
+# Restart nginx
+sudo systemctl restart nginx
+sleep 3
+
+# Test API locally
+response=$(curl -s -o /dev/null -w "%{http_code}" -u "cumulus:cgrlab2" --insecure https://127.0.0.1:8765/nvue_v1/)
 
 if [ "$response" = "200" ]; then
-    echo "  ✓ API authentication working (HTTP $response)"
+    echo "  ✓ API working (HTTP $response)"
     exit 0
 else
     echo "  ✗ API returned HTTP $response"
     exit 1
 fi
-EOSSH
+EOF
     
     if [ $? -eq 0 ]; then
-        echo "[$name] ✓ Configuration successful"
+        # Test from oob-mgmt-server
+        sleep 2
+        response=$(curl -s -o /dev/null -w "%{http_code}" -u "cumulus:$PASSWORD" --insecure https://$ip:8765/nvue_v1/)
+        
+        if [ "$response" = "200" ]; then
+            echo "[$name] ✓ Accessible from oob-mgmt (HTTP $response)"
+        else
+            echo "[$name] ⚠ HTTP $response from oob-mgmt"
+        fi
     else
         echo "[$name] ✗ Configuration failed"
-        return 1
     fi
     echo ""
-}
+done
 
-# Setup all routers
-success_count=0
-fail_count=0
+echo "=========================================="
+echo "  Verification"
+echo "=========================================="
+
+success=0
+fail=0
 
 for name in "${!ROUTERS[@]}"; do
     ip="${ROUTERS[$name]}"
-    if setup_router "$name" "$ip"; then
-        ((success_count++))
+    response=$(curl -s -o /dev/null -w "%{http_code}" -u "cumulus:$PASSWORD" --insecure https://$ip:8765/nvue_v1/)
+    
+    if [ "$response" = "200" ]; then
+        echo "[$name] ✓ HTTP $response"
+        ((success++))
     else
-        ((fail_count++))
+        echo "[$name] ✗ HTTP $response"
+        ((fail++))
     fi
 done
 
-# Summary
-echo "=========================================="
-echo "  Setup Summary"
-echo "=========================================="
-echo "✓ Successful: $success_count"
-echo "✗ Failed: $fail_count"
 echo ""
-
-if [ $fail_count -eq 0 ]; then
-    echo "All routers configured successfully!"
+if [ $fail -eq 0 ]; then
+    echo "✓ All $success routers ready!"
+    echo ""
+    echo "Credentials: cumulus / $PASSWORD"
     exit 0
 else
-    echo "Some routers failed configuration. Check output above."
+    echo "⚠ $success working, $fail failed"
     exit 1
 fi
