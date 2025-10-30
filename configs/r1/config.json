@@ -1,0 +1,23 @@
+{
+  "hostname": "r1",
+  "router_id": "10.1.1.1",
+  "interfaces": [
+    {"name": "swp1", "ip": "10.1.102.1/29"},
+    {"name": "swp2", "ip": "10.1.103.1/29"},
+    {"name": "swp3", "ip": "192.168.14.1/30"}
+  ],
+  "ospf": {
+    "router_id": "10.1.1.1",
+    "area": 0,
+    "networks": ["10.1.102.0/29", "10.1.103.0/29"]
+  },
+  "bgp": {
+    "as_number": 65500,
+    "router_id": "10.1.1.1",
+    "neighbors": [
+      {"ip": "10.1.102.2", "remote_as": "internal"},
+      {"ip": "10.1.103.3", "remote_as": "internal"},
+      {"ip": "192.168.14.2", "remote_as": "external"}
+    ]
+  }
+}
