@@ -10,10 +10,10 @@ def configure_bgp(host, config):
     revision = client.create_revision()
     print(f"Created revision: {revision}")
     
-    # Route-maps go under router/policy
+    # Route-maps (global router policy)
     if config.get("route_maps"):
-        route_map_payload = {"router": {"policy": {"route-map": {}}}}
-        policy_root = route_map_payload["router"]["policy"]["route-map"]
+        route_map_payload = {"policy": {"route-map": {}}}
+        policy_root = route_map_payload["policy"]["route-map"]
         for route_map in config["route_maps"]:
             rm_name = route_map["name"]
             policy_root[rm_name] = {"rule": {}}
@@ -25,12 +25,12 @@ def configure_bgp(host, config):
                 if entry.get("actions"):
                     rule["action"] = entry["actions"]
                 policy_root[rm_name]["rule"][seq] = rule
-        client.patch_config(revision, route_map_payload)
+        client.patch_config(revision, route_map_payload, path="/router")
     
-    # Prefix-lists live under router/prefix-list
+    # Prefix-lists (global router prefix-list)
     if config.get("prefix_lists"):
-        prefix_payload = {"router": {"prefix-list": {}}}
-        prefix_root = prefix_payload["router"]["prefix-list"]
+        prefix_payload = {"prefix-list": {}}
+        prefix_root = prefix_payload["prefix-list"]
         for plist in config["prefix_lists"]:
             prefix_root[plist["name"]] = {"rule": {}}
             for entry in plist.get("entries", []):
@@ -39,22 +39,19 @@ def configure_bgp(host, config):
                     "action": entry["action"],
                     "match": {"prefix": entry["prefix"]}
                 }
-        client.patch_config(revision, prefix_payload)
+        client.patch_config(revision, prefix_payload, path="/router")
     
-    # Build BGP configuration payload (default VRF)
+    # BGP configuration within default VRF
     bgp_payload = {
-        "router": {
-            "bgp": {
-                "autonomous-system": config["as_number"],
-                "router-id": config["router_id"],
-                "enable": "on",
-                "neighbor": {}
-            }
+        "bgp": {
+            "autonomous-system": config["as_number"],
+            "router-id": config["router_id"],
+            "enable": "on",
+            "neighbor": {}
         }
     }
-    router_bgp = bgp_payload["router"]["bgp"]
+    router_bgp = bgp_payload["bgp"]
     
-    # Add BGP neighbors
     for neighbor in config.get("neighbors", []):
         neighbor_cfg = {
             "remote-as": neighbor["remote_as"],
@@ -73,15 +70,13 @@ def configure_bgp(host, config):
                 neighbor_cfg.setdefault("out", {})["route-map"] = neighbor["route_map"]["out"]
         router_bgp["neighbor"][neighbor["ip"]] = neighbor_cfg
     
-    # Add aggregate addresses for route summarization
     if config.get("aggregates"):
         af = router_bgp.setdefault("address-family", {}).setdefault("ipv4-unicast", {})
         af.setdefault("aggregate-route", {})
         for aggregate in config["aggregates"]:
             af["aggregate-route"][aggregate] = {}
     
-    # Apply BGP configuration
-    client.patch_config(revision, bgp_payload)
+    client.patch_config(revision, bgp_payload, path="/vrf/default/router")
     print("Configuration staged")
     
     # Apply revision
