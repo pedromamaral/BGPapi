@@ -16,11 +16,17 @@ class NVUEClient:
         r = requests.post(f"{self.base_url}/revision", auth=self.auth, verify=False)
         r.raise_for_status()
         payload = r.json()
-        if "revision" in payload:
-            return payload["revision"]
-        if payload:
-            return next(iter(payload))
-        raise ValueError(f"Unexpected revision response: {payload}")
+        rev_info = payload.get("revision", payload)
+        if isinstance(rev_info, dict):
+            if "id" in rev_info:
+                revision = rev_info["id"]
+            elif "href" in rev_info:
+                revision = rev_info["href"].rstrip("/").split("/")[-1]
+            else:
+                revision = next(iter(rev_info))
+        else:
+            revision = rev_info
+        return str(revision)
     
     def patch_config(self, revision, payload, path="/"):
         if not path.startswith("/"):
