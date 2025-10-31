@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-import requests
 import json
 import time
+import requests
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class NVUEClient:
@@ -18,56 +19,47 @@ class NVUEClient:
             auth=self.auth,
             verify=False
         )
+        r.raise_for_status()
         response = r.json()
         return list(response.keys())[0]
     
     def patch_config(self, revision, payload, path="/"):
-        """Apply configuration changes"""
-        query = {"rev": revision}
-        r = requests.patch(
-            url=f"{self.base_url}{path}",
-            auth=self.auth,
-            verify=False,
-            data=json.dumps(payload),
-            params=query,
-            headers=self.headers
-        )
-        print(f"Patch response: {r.status_code}")
-        if r.status_code not in [200, 204]:
-            print(f"Error: {r.text}")
-        return r
-    
-    def apply_revision(self, revision):
-        """Apply the revision"""
-        apply_payload = {
-            "state": "apply",
-            "auto-prompt": {"ays": "ays_yes"}
-        }
-        url = f"{self.base_url}/revision/{revision}"
+        """Stage configuration changes under the given path"""
+        if not path.startswith("/"):
+            path = f"/{path}"
+        url = f"{self.base_url}{path}"
+        params = {"rev": revision}
         r = requests.patch(
             url=url,
+            params=params,
             auth=self.auth,
-            verify=False,
-            data=json.dumps(apply_payload),
-            headers=self.headers
+            headers=self.headers,
+            data=json.dumps(payload),
+            verify=False
         )
-        return r
+        if r.status_code >= 400:
+            print(f"Patch response: {r.status_code}")
+            print(f"Error: {r.text}")
+        r.raise_for_status()
+    
+    def apply_revision(self, revision):
+        """Trigger apply on a staged revision"""
+        r = requests.post(
+            url=f"{self.base_url}/revision/{revision}/apply",
+            auth=self.auth,
+            verify=False
+        )
+        r.raise_for_status()
     
     def wait_for_apply(self, revision, retries=30):
-        """Wait for configuration to be applied"""
-        for i in range(retries):
-            r = requests.get(
-                url=f"{self.base_url}/revision/{revision}",
-                auth=self.auth,
-                verify=False
-            )
-            response = r.json()
-            state = response.get("state")
+        """Poll revision state until applied or failure"""
+        for _ in range(retries):
+            details = self.get_revision(revision)
+            state = details.get("state")
             print(f"Revision state: {state}")
             if state == "applied":
                 return True
-            elif state == "apply_failed":
-                print(f"Apply failed: {response}")
+            if state in {"invalid", "apply_failed"}:
                 return False
             time.sleep(2)
         return False
@@ -83,13 +75,16 @@ class NVUEClient:
         return r.json()
 
     def get_config(self, path="/", revision="applied"):
-        """Get current configuration"""
+        """Fetch configuration from a specific path"""
+        if not path.startswith("/"):
+            path = f"/{path}"
         r = requests.get(
             url=f"{self.base_url}{path}",
             params={"rev": revision},
             auth=self.auth,
             verify=False
         )
+        r.raise_for_status()
         return r.json()
 
 if __name__ == "__main__":
