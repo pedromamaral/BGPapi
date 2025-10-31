@@ -13,25 +13,16 @@ class NVUEClient:
         self.headers = {"Content-Type": "application/json"}
         
     def create_revision(self):
-        """Create a new configuration revision"""
-        r = requests.post(
-            url=f"{self.base_url}/revision",
-            auth=self.auth,
-            verify=False
-        )
+        r = requests.post(f"{self.base_url}/revision", auth=self.auth, verify=False)
         r.raise_for_status()
-        response = r.json()
-        return list(response.keys())[0]
+        return r.json()["revision"]
     
     def patch_config(self, revision, payload, path="/"):
-        """Stage configuration changes under the given path"""
         if not path.startswith("/"):
             path = f"/{path}"
-        url = f"{self.base_url}{path}"
-        params = {"rev": revision}
         r = requests.patch(
-            url=url,
-            params=params,
+            f"{self.base_url}{path}",
+            params={"rev": revision},
             auth=self.auth,
             headers=self.headers,
             data=json.dumps(payload),
@@ -43,16 +34,14 @@ class NVUEClient:
         r.raise_for_status()
     
     def apply_revision(self, revision):
-        """Trigger apply on a staged revision"""
         r = requests.post(
-            url=f"{self.base_url}/revision/{revision}/apply",
+            f"{self.base_url}/revision/{revision}/apply",
             auth=self.auth,
             verify=False
         )
         r.raise_for_status()
     
     def wait_for_apply(self, revision, retries=30):
-        """Poll revision state until applied or failure"""
         for _ in range(retries):
             details = self.get_revision(revision)
             state = details.get("state")
@@ -65,9 +54,8 @@ class NVUEClient:
         return False
 
     def get_revision(self, revision):
-        """Fetch revision details (state, errors, warnings)"""
         r = requests.get(
-            url=f"{self.base_url}/revision/{revision}",
+            f"{self.base_url}/revision/{revision}",
             auth=self.auth,
             verify=False
         )
@@ -75,11 +63,10 @@ class NVUEClient:
         return r.json()
 
     def get_config(self, path="/", revision="applied"):
-        """Fetch configuration from a specific path"""
         if not path.startswith("/"):
             path = f"/{path}"
         r = requests.get(
-            url=f"{self.base_url}{path}",
+            f"{self.base_url}{path}",
             params={"rev": revision},
             auth=self.auth,
             verify=False
