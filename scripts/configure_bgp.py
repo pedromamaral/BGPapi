@@ -88,12 +88,13 @@ def configure_bgp(host, config):
     print("Applying configuration...")
     
     # Wait for apply
-    if client.wait_for_apply(revision):
-        print("Configuration applied successfully")
-        return 0
-    else:
-        print("Configuration apply timeout")
+    if not client.wait_for_apply(revision):
+        details = client.get_revision(revision)
+        print(json.dumps(details.get("errors", details), indent=2))
         return 1
+    
+    print("Configuration applied successfully")
+    return 0
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
