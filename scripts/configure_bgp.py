@@ -61,17 +61,14 @@ def configure_bgp(host, config):
             "remote-as": remote_as,
             "type": neighbor.get("type", "numbered")
         }
-        if neighbor.get("update_source"):
-            neighbor_cfg["update-source"] = neighbor["update_source"]
+        af_ipv4 = neighbor_cfg.setdefault("address-family", {}).setdefault("ipv4-unicast", {})
         if neighbor.get("next_hop_self"):
-            neighbor_cfg.setdefault("address-family", {}).setdefault(
-                "ipv4-unicast", {}
-            )["nexthop-setting"] = "self"
+            af_ipv4["nexthop-setting"] = "self"
         if neighbor.get("route_map"):
             if neighbor["route_map"].get("in"):
-                neighbor_cfg.setdefault("in", {})["route-map"] = neighbor["route_map"]["in"]
+                af_ipv4.setdefault("in", {})["route-map"] = neighbor["route_map"]["in"]
             if neighbor["route_map"].get("out"):
-                neighbor_cfg.setdefault("out", {})["route-map"] = neighbor["route_map"]["out"]
+                af_ipv4.setdefault("out", {})["route-map"] = neighbor["route_map"]["out"]
         router_bgp["neighbor"][neighbor["ip"]] = neighbor_cfg
     
     if config.get("aggregates"):
