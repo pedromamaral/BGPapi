@@ -56,8 +56,9 @@ def configure_bgp(host, config):
         remote_as = neighbor["remote_as"]
         if isinstance(remote_as, str) and remote_as.lower() == "internal":
             remote_as = config["as_number"]
+        remote_as = int(remote_as)
         neighbor_cfg = {
-            "remote-as": str(remote_as),
+            "remote-as": remote_as,
             "type": neighbor.get("type", "numbered")
         }
         if neighbor.get("update_source"):
