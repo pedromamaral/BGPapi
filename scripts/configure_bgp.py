@@ -62,7 +62,7 @@ def configure_bgp(host, config):
         if neighbor.get("next_hop_self"):
             neighbor_cfg.setdefault("address-family", {}).setdefault(
                 "ipv4-unicast", {}
-            )["next-hop-self"] = neighbor["next_hop_self"]
+            ).setdefault("nexthop-setting", {})["self"] = neighbor["next_hop_self"]
         if neighbor.get("route_map"):
             if neighbor["route_map"].get("in"):
                 neighbor_cfg.setdefault("in", {})["route-map"] = neighbor["route_map"]["in"]
