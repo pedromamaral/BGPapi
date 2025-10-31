@@ -71,7 +71,17 @@ class NVUEClient:
                 return False
             time.sleep(2)
         return False
-    
+
+    def get_revision(self, revision):
+        """Fetch revision details (state, errors, warnings)"""
+        r = requests.get(
+            url=f"{self.base_url}/revision/{revision}",
+            auth=self.auth,
+            verify=False
+        )
+        r.raise_for_status()
+        return r.json()
+
     def get_config(self, path="/", revision="applied"):
         """Get current configuration"""
         r = requests.get(
