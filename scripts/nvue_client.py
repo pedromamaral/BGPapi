@@ -168,4 +168,92 @@ class NVUEClient:
         """
         for attempt in range(retries):
             try:
-                r = requests.
+                r = requests.get(
+                    url=f"{self.base_url}/revision/{revision}",
+                    auth=self.auth,
+                    verify=False,
+                    timeout=10
+                )
+                
+                if r.status_code != 200:
+                    print(f"Warning: Revision query returned HTTP {r.status_code}")
+                    time.sleep(delay)
+                    continue
+                
+                response = r.json()
+                state = response.get("state")
+                
+                if state == "applied":
+                    print(f"✓ Revision applied successfully")
+                    return True
+                elif state == "apply_failed":
+                    print(f"✗ Revision apply failed")
+                    print(f"Details: {response}")
+                    return False
+                else:
+                    print(f"  Waiting... (state: {state})")
+                    time.sleep(delay)
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"Warning: Error checking revision status")
+                print(f"Details: {str(e)}")
+                time.sleep(delay)
+        
+        print(f"✗ Timeout waiting for revision to apply")
+        return False
+    
+    def get_config(self, path="/", revision="applied"):
+        """
+        Get configuration from a path
+        
+        Args:
+            path: Configuration path (default: "/")
+            revision: Revision to query (default: "applied")
+        
+        Returns:
+            Configuration dict
+        """
+        try:
+            r = requests.get(
+                url=f"{self.base_url}{path}",
+                params={"rev": revision},
+                auth=self.auth,
+                verify=False,
+                timeout=10
+            )
+            
+            if r.status_code != 200:
+                print(f"ERROR: Get config failed with HTTP {r.status_code}")
+                return {}
+            
+            return r.json()
+            
+        except requests.exceptions.RequestException as e:
+            print(f"ERROR: Connection error during get")
+            print(f"Details: {str(e)}")
+            raise
+    
+    def show_config(self, revision="applied"):
+        """
+        Show current applied configuration
+        
+        Args:
+            revision: Revision to show (default: "applied")
+        
+        Returns:
+            Configuration dict
+        """
+        return self.get_config("/", revision)
+
+
+if __name__ == "__main__":
+    # Example usage
+    print("NVUE Client Library")
+    print("Usage: from nvue_client import NVUEClient")
+    print("")
+    print("Example:")
+    print("  client = NVUEClient('192.168.200.11', 'cumulus', 'cgrlab2')")
+    print("  revision = client.create_revision()")
+    print("  client.patch_config(revision, {...})")
+    print("  client.apply_revision(revision)")
+    print("  client.wait_for_apply(revision)")
