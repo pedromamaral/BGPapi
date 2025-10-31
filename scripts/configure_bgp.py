@@ -53,8 +53,11 @@ def configure_bgp(host, config):
     router_bgp = bgp_payload["bgp"]
     
     for neighbor in config.get("neighbors", []):
+        remote_as = neighbor["remote_as"]
+        if isinstance(remote_as, str) and remote_as.lower() == "internal":
+            remote_as = config["as_number"]
         neighbor_cfg = {
-            "remote-as": neighbor["remote_as"],
+            "remote-as": str(remote_as),
             "type": neighbor.get("type", "numbered")
         }
         if neighbor.get("update_source"):

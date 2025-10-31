@@ -16,9 +16,9 @@
     "as_number": 65500,
     "router_id": "10.1.1.1",
     "neighbors": [
-      {"ip": "10.1.102.2", "remote_as": "internal", "update_source": "lo", "next_hop_self": "on"},
-      {"ip": "10.1.103.3", "remote_as": "internal", "update_source": "lo"},
-      {"ip": "192.168.14.2", "remote_as": "external", "route_map": {"in": "SET_LOCAL_PREF"}}
+      {"ip": "10.1.102.2", "remote_as": 65500, "update_source": "lo", "next_hop_self": "on"},
+      {"ip": "10.1.103.3", "remote_as": 65500, "update_source": "lo"},
+      {"ip": "192.168.14.2", "remote_as": 64600, "route_map": {"in": "SET_LOCAL_PREF"}}
     ]
   },
   "route_maps": [
